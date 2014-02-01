@@ -57,7 +57,7 @@ static int debug = 0;
 module_param(debug, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(debug, "enable debug output (default: 0)");
 
-static unsigned char set_led_prefix[] = {0x03, 0x00, 0x03, 0xb0};
+static unsigned char set_led_prefix[] = {0x03, 0x00};
 
 static unsigned char bcd2000_init_sequence[] = {
 	0x07, 0x00, 0x00, 0x00, 0x78, 0x48, 0x1c, 0x81, 0xc4, 0x00, 0x00, 0x00, 0x5e, 0x53, 0x4a, 0xf7,
@@ -233,18 +233,18 @@ static void bcd2000_midi_send(struct bcd2000 *bcd2k,
 	memcpy(bcd2k->midi_out_buf, set_led_prefix, sizeof(set_led_prefix));
 	
 	/* get MIDI packet */
-	len = snd_rawmidi_transmit(substream, bcd2k->midi_out_buf + 4, BUFSIZE - 4);
+	len = snd_rawmidi_transmit(substream, bcd2k->midi_out_buf + 3, BUFSIZE - 3);
 	
 	if (len <= 0)
 		return;
 	
 	/* set payload length */
-	bcd2k->midi_out_buf[2] = len + 1;
+	bcd2k->midi_out_buf[2] = len;
 	bcd2k->midi_out_urb->transfer_buffer_length = BUFSIZE;
 	
 	if (DEBUG || debug) {
 		printk(KERN_DEBUG PREFIX "sending: ");
-		for (ret=0;ret< BUFSIZE;ret++) {
+		for (ret=0;ret< 3 + len;ret++) {
 			printk("%x ", bcd2k->midi_out_buf[ret]);
 		}
 		printk("\n");
