@@ -26,8 +26,9 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/rawmidi.h>
-#include "../usbaudio.h"
-#include "../midi.h"
+
+#include "usbaudio.h"
+#include "midi.h"
 
 #ifndef CONFIG_USB_DEBUG
 #define CONFIG_USB_DEBUG 0
