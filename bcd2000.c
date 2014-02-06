@@ -61,9 +61,6 @@ struct bcd2000 {
 	unsigned char midi_in_buf[BUFSIZE];
 	unsigned char midi_out_buf[BUFSIZE];
 
-	unsigned char midi_cmd_buf[3];
-	unsigned char midi_cmd_offset;
-
 	struct urb *midi_out_urb;
 	struct urb *midi_in_urb;
 };
@@ -76,12 +73,16 @@ static DEFINE_MUTEX(devices_mutex);
 static unsigned int devices_used;
 static struct usb_driver bcd2000_driver;
 
+#ifdef CONFIG_SND_DEBUG
 static void bcd2000_dump_buffer(const char *prefix, const char *buf, int len)
 {
 	print_hex_dump(KERN_DEBUG, prefix,
 			DUMP_PREFIX_NONE, 16, 1,
 			buf, len, false);
 }
+#else
+static void bcd2000_dump_buffer(const char *prefix, const char *buf, int len) {}
+#endif
 
 static int bcd2000_midi_input_open(struct snd_rawmidi_substream *substream)
 {
@@ -104,12 +105,12 @@ static void bcd2000_midi_input_trigger(struct snd_rawmidi_substream *substream,
 static void bcd2000_midi_handle_input(struct bcd2000 *bcd2k,
 					const unsigned char *buf, int len)
 {
-	unsigned char length, cmd, buf_offset, tocopy;
+	unsigned char length, tocopy;
 
 	if (!bcd2k->midi_receive_substream)
 		return;
 
-	bcd2000_dump_buffer("received from device: ", buf, len);
+	bcd2000_dump_buffer(PREFIX "received from device: ", buf, len);
 
 	if (len < 2)
 		return;
@@ -131,55 +132,13 @@ static void bcd2000_midi_handle_input(struct bcd2000 *bcd2k,
 	if (length == 0)
 		return;
 
-	/*
-	 * The MIDI packets the BCD2000 sends can be arbitrarily truncated or
-	 * concatenated. Therefore, this loop accumulates the bytes from the
-	 * input buffer until a full valid MIDI packet is in the MIDI command
-	 * buffer "midi_cmd_buf".
-	 */
-
-	buf_offset = 1;
-	while (buf_offset <= length) {
-		cmd = buf[buf_offset];
-
-		if (bcd2k->midi_cmd_offset == 0 && cmd != 0x90 && cmd != 0xb0) {
-			/*
-			 * this is a 2-byte midi packet -> reuse command byte
-			 * from last midi packet
-			 */
-			bcd2k->midi_cmd_offset = 1;
-		}
-
-		/* determine the number of bytes we want to copy this time */
-		tocopy = min(3 - bcd2k->midi_cmd_offset,
-					length - (buf_offset - 1));
-
-		/* safety check */
-		if (bcd2k->midi_cmd_offset + tocopy < BUFSIZE &&
-				buf_offset + tocopy < len) {
-			memcpy(&bcd2k->midi_cmd_buf[bcd2k->midi_cmd_offset],
-				&buf[buf_offset], tocopy);
-		} else {
-			snd_printk(KERN_ERR PREFIX "access violation in %s\n",
-					__func__);
-			return;
-		}
-
-		bcd2k->midi_cmd_offset += tocopy;
-		buf_offset += tocopy;
-
-		/* is our MIDI packet complete? */
-		if (bcd2k->midi_cmd_offset == 3) {
-			bcd2000_dump_buffer("sending to userspace: ",
-				bcd2k->midi_cmd_buf, bcd2k->midi_cmd_offset);
-
-			/* send MIDI packet */
-			snd_rawmidi_receive(bcd2k->midi_receive_substream,
-						bcd2k->midi_cmd_buf, 3);
-
-			bcd2k->midi_cmd_offset = 0;
-		}
-	}
+	tocopy = min(length, (unsigned char) (len-1));
+	
+	bcd2000_dump_buffer(PREFIX "sending to userspace: ",
+					&buf[1], tocopy);
+	
+	snd_rawmidi_receive(bcd2k->midi_receive_substream,
+					&buf[1], tocopy);
 }
 
 static int bcd2000_midi_output_open(struct snd_rawmidi_substream *substream)
@@ -191,8 +150,10 @@ static int bcd2000_midi_output_close(struct snd_rawmidi_substream *substream)
 {
 	struct bcd2000 *bcd2k = substream->rmidi->private_data;
 
-	if (bcd2k->midi_out_active)
+	if (bcd2k->midi_out_active) {
+		usb_kill_urb(bcd2k->midi_out_urb);
 		bcd2k->midi_out_active = 0;
+	}
 
 	return 0;
 }
@@ -221,11 +182,11 @@ static void bcd2000_midi_send(struct bcd2000 *bcd2k,
 	bcd2k->midi_out_buf[2] = len;
 	bcd2k->midi_out_urb->transfer_buffer_length = BUFSIZE;
 
-	bcd2000_dump_buffer("sending to device: ",
+	bcd2000_dump_buffer(PREFIX "sending to device: ",
 			bcd2k->midi_out_buf, len+3);
 
 	/* send packet to the BCD2000 */
-	ret = usb_submit_urb(bcd2k->midi_out_urb, GFP_KERNEL);
+	ret = usb_submit_urb(bcd2k->midi_out_urb, GFP_ATOMIC);
 	if (ret < 0)
 		dev_err(&bcd2k->dev->dev, PREFIX
 			"%s (%p): usb_submit_urb() failed, ret=%d, len=%d\n",
@@ -266,7 +227,7 @@ static void bcd2000_command_reply_dispatch(struct urb *urb)
 					urb->actual_length);
 
 	bcd2k->midi_in_urb->actual_length = 0;
-	ret = usb_submit_urb(bcd2k->midi_in_urb, GFP_KERNEL);
+	ret = usb_submit_urb(bcd2k->midi_in_urb, GFP_ATOMIC);
 	if (ret < 0)
 		dev_err(dev, "unable to submit urb. OOM!?\n");
 }
@@ -306,17 +267,21 @@ static void bcd2000_init_device(struct bcd2000 *bcd2k)
 	bcd2k->midi_out_urb->transfer_buffer_length = 52;
 
 	/* submit sequence */
-	ret = usb_submit_urb(bcd2k->midi_out_urb, GFP_KERNEL);
+	ret = usb_submit_urb(bcd2k->midi_out_urb, GFP_ATOMIC);
 	if (ret < 0)
 		dev_err(&bcd2k->dev->dev, PREFIX
-				"%s: usb_submit_urb() failed, ret=%d: ",
-				__func__, ret);
+			"%s: usb_submit_urb() out failed, ret=%d: ",
+			__func__, ret);
 	else
 		bcd2k->midi_out_active = 1;
 
 	/* send empty packet to enable button and controller events */
 	bcd2k->midi_in_urb->actual_length = 0;
-	ret = usb_submit_urb(bcd2k->midi_in_urb, GFP_KERNEL);
+	ret = usb_submit_urb(bcd2k->midi_in_urb, GFP_ATOMIC);
+	if (ret < 0)
+		dev_err(&bcd2k->dev->dev, PREFIX
+			"%s: usb_submit_urb() in failed, ret=%d: ",
+			__func__, ret);
 }
 
 static void bcd2000_init_midi(struct bcd2000 *bcd2k)
@@ -370,8 +335,8 @@ static void bcd2000_init_midi(struct bcd2000 *bcd2k)
 
 static void bcd2000_close_midi(struct bcd2000 *bcd2k)
 {
-	usb_free_urb(bcd2k->midi_out_urb);
-	usb_free_urb(bcd2k->midi_in_urb);
+	usb_kill_urb(bcd2k->midi_out_urb);
+	usb_kill_urb(bcd2k->midi_in_urb);
 }
 
 static void bcd2000_free_usb_related_resources(struct bcd2000 *bcd2k,
@@ -379,9 +344,6 @@ static void bcd2000_free_usb_related_resources(struct bcd2000 *bcd2k,
 {
 	if (bcd2k->intf) {
 		usb_set_intfdata(bcd2k->intf, NULL);
-		if (bcd2k->intf != interface)
-			usb_driver_release_interface(&bcd2000_driver,
-							bcd2k->intf);
 		bcd2k->intf = NULL;
 	}
 }
@@ -431,9 +393,8 @@ static int bcd2000_probe(struct usb_interface *interface,
 	strcpy(card->shortname, DEVICE_SHORTNAME);
 	usb_make_path(bcd2k->dev, usb_path, sizeof(usb_path));
 	snprintf(bcd2k->card->longname, sizeof(bcd2k->card->longname),
-			DEVICE_NAME ", at %s, %s speed",
-			usb_path,
-			"full");
+			DEVICE_NAME ", at %s",
+			usb_path);
 
 	dev_info(&bcd2k->dev->dev, PREFIX "%s", bcd2k->card->longname);
 
@@ -463,8 +424,6 @@ static void bcd2000_disconnect(struct usb_interface *interface)
 	if (!bcd2k)
 		return;
 
-	bcd2000_close_midi(bcd2k);
-
 	mutex_lock(&devices_mutex);
 
 	/* make sure that userspace cannot create new requests */
@@ -473,6 +432,8 @@ static void bcd2000_disconnect(struct usb_interface *interface)
 	bcd2000_free_usb_related_resources(bcd2k, interface);
 
 	devices_used &= ~(1 << bcd2k->card_index);
+
+	bcd2000_close_midi(bcd2k);
 
 	snd_card_free_when_closed(bcd2k->card);
 
