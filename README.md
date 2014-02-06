@@ -16,5 +16,4 @@ Usage:
 * Either assure that kernel sources are available under:
   <tt>/lib/modules/$(shell uname -r)/build</tt>
   and execute "make" in the snd-usb-bcd2000 folder, or
-* Copy the files from dist/ into the main folder and use DKMS to build the
-  kernel (see [Ubuntu DKMS](https://help.ubuntu.com/community/DKMS)).
+* or use DKMS to build the kernel (see [Ubuntu DKMS](https://help.ubuntu.com/community/DKMS)).

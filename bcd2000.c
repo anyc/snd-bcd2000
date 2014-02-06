@@ -80,6 +80,13 @@ static DEFINE_MUTEX(devices_mutex);
 static unsigned int devices_used;
 static struct usb_driver bcd2000_driver;
 
+static void bcd2000_dump_buffer(const char *prefix, const char *buf, int len)
+{
+	print_hex_dump(KERN_DEBUG, prefix,
+			DUMP_PREFIX_NONE, 16, 1,
+			buf, len, false);
+}
+
 static int bcd2000_midi_input_open(struct snd_rawmidi_substream *substream)
 {
 	return 0;
@@ -106,9 +113,7 @@ static void bcd2000_midi_handle_input(struct bcd2000 *bcd2k,
 	if (!bcd2k->midi_receive_substream)
 		return;
 
-	if (debug)
-		print_hex_dump(KERN_DEBUG, "received from device: ",
-				DUMP_PREFIX_NONE, 16, 1, buf, len, false);
+	bcd2000_dump_buffer("received from device: ", buf, len);
 
 	if (len < 2)
 		return;
@@ -169,12 +174,8 @@ static void bcd2000_midi_handle_input(struct bcd2000 *bcd2k,
 
 		/* is our MIDI packet complete? */
 		if (bcd2k->midi_cmd_offset == 3) {
-			if (debug)
-				print_hex_dump(KERN_DEBUG,
-						"sending to userspace: ",
-						DUMP_PREFIX_NONE, 16, 1,
-						bcd2k->midi_cmd_buf,
-						bcd2k->midi_cmd_offset, false);
+			bcd2000_dump_buffer("sending to userspace: ",
+				bcd2k->midi_cmd_buf, bcd2k->midi_cmd_offset);
 
 			/* send MIDI packet */
 			snd_rawmidi_receive(bcd2k->midi_receive_substream,
@@ -194,9 +195,9 @@ static int bcd2000_midi_output_close(struct snd_rawmidi_substream *substream)
 {
 	struct bcd2000 *bcd2k = substream->rmidi->private_data;
 
-	if (bcd2k->midi_out_active) {
+	if (bcd2k->midi_out_active)
 		bcd2k->midi_out_active = 0;
-	}
+
 	return 0;
 }
 
@@ -224,10 +225,8 @@ static void bcd2000_midi_send(struct bcd2000 *bcd2k,
 	bcd2k->midi_out_buf[2] = len;
 	bcd2k->midi_out_urb->transfer_buffer_length = BUFSIZE;
 
-	if (debug)
-		print_hex_dump(KERN_DEBUG, "sending to device: ",
-				DUMP_PREFIX_NONE, 16, 1,
-				bcd2k->midi_out_buf, len+3, false);
+	bcd2000_dump_buffer("sending to device: ",
+			bcd2k->midi_out_buf, len+3);
 
 	/* send packet to the BCD2000 */
 	ret = usb_submit_urb(bcd2k->midi_out_urb, GFP_KERNEL);
@@ -410,19 +409,19 @@ static int bcd2000_probe(struct usb_interface *interface,
 	for (card_index = 0; card_index < SNDRV_CARDS; ++card_index)
 		if (enable[card_index] && !(devices_used & (1 << card_index)))
 			break;
-	
+
 	if (card_index >= SNDRV_CARDS) {
 		mutex_unlock(&devices_mutex);
 		return -ENOENT;
 	}
-	
+
 	err = snd_card_create(index[card_index], id[card_index], THIS_MODULE,
 					sizeof(*bcd2k), &card);
 	if (err < 0) {
 		mutex_unlock(&devices_mutex);
 		return err;
 	}
-	
+
 	card->private_free = bcd2000_card_free;
 	bcd2k = card->private_data;
 	bcd2k->dev = interface_to_usbdev(interface);
