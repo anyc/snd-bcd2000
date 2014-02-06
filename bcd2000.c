@@ -36,10 +36,6 @@ static struct usb_device_id id_table[] = {
 	{ },
 };
 
-static int debug;
-module_param(debug, int, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(debug, "enable debug output (default: 0)");
-
 static unsigned char device_cmd_prefix[] = {0x03, 0x00};
 
 static unsigned char bcd2000_init_sequence[] = {
