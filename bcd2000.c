@@ -312,7 +312,7 @@ static int bcd2000_init_midi(struct bcd2000 *bcd2k)
 					&rmidi);
 
 	if (ret < 0)
-		return;
+		return ret;
 
 	strlcpy(rmidi->name, bcd2k->card->shortname, sizeof(rmidi->name));
 
