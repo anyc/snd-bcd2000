@@ -45,7 +45,8 @@ static unsigned char bcd2000_init_sequence[] = {
 	0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
 	0x18, 0xfa, 0x11, 0xff, 0x14, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0xf2, 0x34, 0x4a, 0xf7,
-	0x18, 0xfa, 0x11, 0xff};
+	0x18, 0xfa, 0x11, 0xff
+};
 
 struct bcd2000 {
 	struct usb_device *dev;
@@ -105,11 +106,13 @@ static void bcd2000_midi_input_trigger(struct snd_rawmidi_substream *substream,
 }
 
 static void bcd2000_midi_handle_input(struct bcd2000 *bcd2k,
-					const unsigned char *buf, int len)
+					const unsigned char *buf, unsigned int len)
 {
-	unsigned char length, tocopy;
-
-	if (!bcd2k->midi_receive_substream)
+	unsigned int length, tocopy;
+	struct snd_rawmidi_substream *midi_receive_substream;
+	
+	midi_receive_substream = ACCESS_ONCE(bcd2k->midi_receive_substream);
+	if (!midi_receive_substream)
 		return;
 
 	bcd2000_dump_buffer(PREFIX "received from device: ", buf, len);
@@ -131,12 +134,12 @@ static void bcd2000_midi_handle_input(struct bcd2000 *bcd2k,
 	if (length == 0)
 		return;
 
-	tocopy = min(length, (unsigned char) (len-1));
+	tocopy = min(length, len-1);
 
 	bcd2000_dump_buffer(PREFIX "sending to userspace: ",
 					&buf[1], tocopy);
 
-	snd_rawmidi_receive(bcd2k->midi_receive_substream,
+	snd_rawmidi_receive(midi_receive_substream,
 					&buf[1], tocopy);
 }
 
@@ -146,6 +149,7 @@ static void bcd2000_midi_send(struct bcd2000 *bcd2k,
 	int len, ret;
 
 	BUILD_BUG_ON(sizeof(device_cmd_prefix) >= BUFSIZE);
+
 	/* copy the "set LED" command bytes */
 	memcpy(bcd2k->midi_out_buf, device_cmd_prefix,
 		sizeof(device_cmd_prefix));
@@ -158,7 +162,7 @@ static void bcd2000_midi_send(struct bcd2000 *bcd2k,
 				bcd2k->midi_out_buf + 3, BUFSIZE - 3);
 
 	if (len < 0)
-		snd_printk("%s: snd_rawmidi_transmit error %d\n",
+		dev_err(&bcd2k->dev->dev, "%s: snd_rawmidi_transmit error %d\n",
 				__func__, len);
 
 	if (len <= 0)
@@ -333,7 +337,7 @@ static int bcd2000_init_midi(struct bcd2000 *bcd2k)
 	bcd2k->midi_out_urb = usb_alloc_urb(0, GFP_KERNEL);
 
 	if (!bcd2k->midi_in_urb || !bcd2k->midi_out_urb) {
-		snd_printk(KERN_ERR PREFIX "usb_alloc_urb failed\n");
+		dev_err(&bcd2k->dev->dev, PREFIX "usb_alloc_urb failed\n");
 		return -ENOMEM;
 	}
 
@@ -466,7 +470,7 @@ static int __init bcd2000_init(void)
 
 	retval = usb_register(&bcd2000_driver);
 	if (retval)
-		snd_printk(KERN_INFO "usb_register failed. Error: %d", retval);
+		pr_info(PREFIX "usb_register failed. Error: %d", retval);
 	return retval;
 }
 
