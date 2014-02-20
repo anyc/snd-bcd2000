@@ -19,6 +19,7 @@
 #include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/module.h>
+#include <linux/bitmap.h>
 #include <linux/usb.h>
 #include <linux/usb/audio.h>
 #include <sound/core.h>
@@ -70,10 +71,9 @@ struct bcd2000 {
 
 static int index[SNDRV_CARDS] = SNDRV_DEFAULT_IDX;
 static char *id[SNDRV_CARDS] = SNDRV_DEFAULT_STR;
-static bool enable[SNDRV_CARDS] = SNDRV_DEFAULT_ENABLE_PNP;
 
 static DEFINE_MUTEX(devices_mutex);
-static unsigned int devices_used;
+DECLARE_BITMAP(devices_used, SNDRV_CARDS);
 static struct usb_driver bcd2000_driver;
 
 #ifdef CONFIG_SND_DEBUG
@@ -106,11 +106,11 @@ static void bcd2000_midi_input_trigger(struct snd_rawmidi_substream *substream,
 }
 
 static void bcd2000_midi_handle_input(struct bcd2000 *bcd2k,
-					const unsigned char *buf, unsigned int len)
+				const unsigned char *buf, unsigned int len)
 {
 	unsigned int length, tocopy;
 	struct snd_rawmidi_substream *midi_receive_substream;
-	
+
 	midi_receive_substream = ACCESS_ONCE(bcd2k->midi_receive_substream);
 	if (!midi_receive_substream)
 		return;
@@ -382,7 +382,7 @@ static int bcd2000_probe(struct usb_interface *interface,
 	mutex_lock(&devices_mutex);
 
 	for (card_index = 0; card_index < SNDRV_CARDS; ++card_index)
-		if (enable[card_index] && !(devices_used & (1 << card_index)))
+		if (!test_bit(card_index, devices_used))
 			break;
 
 	if (card_index >= SNDRV_CARDS) {
@@ -423,7 +423,7 @@ static int bcd2000_probe(struct usb_interface *interface,
 		goto probe_error;
 
 	usb_set_intfdata(interface, bcd2k);
-	devices_used |= 1 << card_index;
+	set_bit(card_index, devices_used);
 
 	mutex_unlock(&devices_mutex);
 	return 0;
@@ -450,7 +450,7 @@ static void bcd2000_disconnect(struct usb_interface *interface)
 
 	bcd2000_free_usb_related_resources(bcd2k, interface);
 
-	devices_used &= ~(1 << bcd2k->card_index);
+	clear_bit(bcd2k->card_index, devices_used);
 
 	snd_card_free_when_closed(bcd2k->card);
 
