@@ -26,10 +26,7 @@
 #include <sound/initval.h>
 #include <sound/rawmidi.h>
 
-#define DEVICE_NAME "Behringer BCD2000"
-#define DEVICE_SHORTNAME "bcd2000"
-
-#define PREFIX DEVICE_SHORTNAME ": "
+#define PREFIX "snd-bcd2000: "
 #define BUFSIZE 64
 
 static struct usb_device_id id_table[] = {
@@ -106,35 +103,27 @@ static void bcd2000_midi_input_trigger(struct snd_rawmidi_substream *substream,
 }
 
 static void bcd2000_midi_handle_input(struct bcd2000 *bcd2k,
-				const unsigned char *buf, unsigned int len)
+				const unsigned char *buf, unsigned int buf_len)
 {
-	unsigned int length, tocopy;
+	unsigned int payload_length, tocopy;
 	struct snd_rawmidi_substream *midi_receive_substream;
 
 	midi_receive_substream = ACCESS_ONCE(bcd2k->midi_receive_substream);
 	if (!midi_receive_substream)
 		return;
 
-	bcd2000_dump_buffer(PREFIX "received from device: ", buf, len);
+	bcd2000_dump_buffer(PREFIX "received from device: ", buf, buf_len);
 
-	if (len < 2)
+	if (buf_len < 2)
 		return;
 
-	/*
-	 * Packet structure: mm nn oo (pp)
-	 *	mm: payload length
-	 *	nn: MIDI command or note
-	 *	oo: note or velocity
-	 *	pp: velocity
-	 */
-
-	length = buf[0];
+	payload_length = buf[0];
 
 	/* ignore packets without payload */
-	if (length == 0)
+	if (payload_length == 0)
 		return;
 
-	tocopy = min(length, len-1);
+	tocopy = min(payload_length, buf_len-1);
 
 	bcd2000_dump_buffer(PREFIX "sending to userspace: ",
 					&buf[1], tocopy);
@@ -143,14 +132,18 @@ static void bcd2000_midi_handle_input(struct bcd2000 *bcd2k,
 					&buf[1], tocopy);
 }
 
-static void bcd2000_midi_send(struct bcd2000 *bcd2k,
-				struct snd_rawmidi_substream *substream)
+static void bcd2000_midi_send(struct bcd2000 *bcd2k)
 {
 	int len, ret;
+	struct snd_rawmidi_substream *midi_out_substream;
 
 	BUILD_BUG_ON(sizeof(device_cmd_prefix) >= BUFSIZE);
 
-	/* copy the "set LED" command bytes */
+	midi_out_substream = ACCESS_ONCE(bcd2k->midi_out_substream);
+	if (!midi_out_substream)
+		return;
+
+	/* copy command prefix bytes */
 	memcpy(bcd2k->midi_out_buf, device_cmd_prefix,
 		sizeof(device_cmd_prefix));
 
@@ -158,7 +151,7 @@ static void bcd2000_midi_send(struct bcd2000 *bcd2k,
 	 * get MIDI packet and leave space for command prefix
 	 * and payload length
 	 */
-	len = snd_rawmidi_transmit(substream,
+	len = snd_rawmidi_transmit(midi_out_substream,
 				bcd2k->midi_out_buf + 3, BUFSIZE - 3);
 
 	if (len < 0)
@@ -180,7 +173,7 @@ static void bcd2000_midi_send(struct bcd2000 *bcd2k,
 	if (ret < 0)
 		dev_err(&bcd2k->dev->dev, PREFIX
 			"%s (%p): usb_submit_urb() failed, ret=%d, len=%d\n",
-			__func__, substream, ret, len);
+			__func__, midi_out_substream, ret, len);
 	else
 		bcd2k->midi_out_active = 1;
 }
@@ -212,7 +205,7 @@ static void bcd2000_midi_output_trigger(struct snd_rawmidi_substream *substream,
 		bcd2k->midi_out_substream = substream;
 		/* check if there is data userspace wants to send */
 		if (!bcd2k->midi_out_active)
-			bcd2000_midi_send(bcd2k, substream);
+			bcd2000_midi_send(bcd2k);
 	} else {
 		bcd2k->midi_out_substream = NULL;
 	}
@@ -221,34 +214,30 @@ static void bcd2000_midi_output_trigger(struct snd_rawmidi_substream *substream,
 static void bcd2000_output_complete(struct urb *urb)
 {
 	struct bcd2000 *bcd2k = urb->context;
-	struct snd_rawmidi_substream *midi_out_substream;
 
 	bcd2k->midi_out_active = 0;
 
-	if (urb->status != 0)
-		dev_err(&urb->dev->dev,
+	if (urb->status)
+		dev_warn(&urb->dev->dev,
 			PREFIX "output urb->status: %d\n", urb->status);
 
-	midi_out_substream = ACCESS_ONCE(bcd2k->midi_out_substream);
-	if (!midi_out_substream)
+	if (urb->status == -ESHUTDOWN)
 		return;
 
 	/* check if there is more data userspace wants to send */
-	bcd2000_midi_send(bcd2k, midi_out_substream);
+	bcd2000_midi_send(bcd2k);
 }
 
 static void bcd2000_input_complete(struct urb *urb)
 {
 	int ret;
-	struct device *dev = &urb->dev->dev;
 	struct bcd2000 *bcd2k = urb->context;
 
-	if (urb->status) {
-		dev_warn(dev, PREFIX "input urb->status: %i\n", urb->status);
-		return;
-	}
+	if (urb->status)
+		dev_warn(&urb->dev->dev,
+			PREFIX "input urb->status: %i\n", urb->status);
 
-	if (!bcd2k)
+	if (!bcd2k || urb->status == -ESHUTDOWN)
 		return;
 
 	if (urb->actual_length > 0)
@@ -258,7 +247,9 @@ static void bcd2000_input_complete(struct urb *urb)
 	/* acknowledge received packet */
 	ret = usb_submit_urb(bcd2k->midi_in_urb, GFP_ATOMIC);
 	if (ret < 0)
-		dev_err(dev, "unable to submit urb. OOM!?\n");
+		dev_err(&bcd2k->dev->dev, PREFIX
+			"%s: usb_submit_urb() failed, ret=%d\n",
+			__func__, ret);
 }
 
 static struct snd_rawmidi_ops bcd2000_midi_output = {
@@ -405,14 +396,12 @@ static int bcd2000_probe(struct usb_interface *interface,
 
 	snd_card_set_dev(card, &interface->dev);
 
-	strcpy(card->driver, DEVICE_NAME);
-	strcpy(card->shortname, DEVICE_SHORTNAME);
+	strncpy(card->driver, "snd-bcd2000", sizeof(card->driver));
+	strncpy(card->shortname, "BCD2000", sizeof(card->shortname));
 	usb_make_path(bcd2k->dev, usb_path, sizeof(usb_path));
 	snprintf(bcd2k->card->longname, sizeof(bcd2k->card->longname),
-			DEVICE_NAME ", at %s",
+		    "Behringer BCD2000 at %s",
 			usb_path);
-
-	dev_info(&bcd2k->dev->dev, PREFIX "%s", bcd2k->card->longname);
 
 	err = bcd2000_init_midi(bcd2k);
 	if (err < 0)
@@ -458,7 +447,7 @@ static void bcd2000_disconnect(struct usb_interface *interface)
 }
 
 static struct usb_driver bcd2000_driver = {
-	.name =	DEVICE_SHORTNAME,
+	.name =	"snd-bcd2000",
 	.probe =	bcd2000_probe,
 	.disconnect =	bcd2000_disconnect,
 	.id_table =	id_table,
