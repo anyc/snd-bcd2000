@@ -244,7 +244,7 @@ static void bcd2000_input_complete(struct urb *urb)
 		bcd2000_midi_handle_input(bcd2k, urb->transfer_buffer,
 					urb->actual_length);
 
-	/* acknowledge received packet */
+	/* return URB to device */
 	ret = usb_submit_urb(bcd2k->midi_in_urb, GFP_ATOMIC);
 	if (ret < 0)
 		dev_err(&bcd2k->dev->dev, PREFIX
