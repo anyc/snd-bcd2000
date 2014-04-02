@@ -14,6 +14,8 @@
  *   GNU General Public License for more details.
  */
 
+#include <linux/version.h>
+
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -380,9 +382,14 @@ static int bcd2000_probe(struct usb_interface *interface,
 		mutex_unlock(&devices_mutex);
 		return -ENOENT;
 	}
-
+	
+	#if LINUX_VERSION_CODE < KERNEL_VERSION(3,15,0)
 	err = snd_card_create(index[card_index], id[card_index], THIS_MODULE,
-					sizeof(*bcd2k), &card);
+			sizeof(*bcd2k), &card);
+	#else
+	err = snd_card_new(&interface->dev, index[card_index], id[card_index],
+			THIS_MODULE, sizeof(*bcd2k), &card);
+	#endif
 	if (err < 0) {
 		mutex_unlock(&devices_mutex);
 		return err;
