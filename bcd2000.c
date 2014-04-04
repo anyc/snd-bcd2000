@@ -382,7 +382,7 @@ static int bcd2000_probe(struct usb_interface *interface,
 		mutex_unlock(&devices_mutex);
 		return -ENOENT;
 	}
-	
+
 	#if LINUX_VERSION_CODE < KERNEL_VERSION(3,15,0)
 	err = snd_card_create(index[card_index], id[card_index], THIS_MODULE,
 			sizeof(*bcd2k), &card);
@@ -460,23 +460,7 @@ static struct usb_driver bcd2000_driver = {
 	.id_table =	id_table,
 };
 
-static int __init bcd2000_init(void)
-{
-	int retval = 0;
-
-	retval = usb_register(&bcd2000_driver);
-	if (retval)
-		pr_info(PREFIX "usb_register failed. Error: %d", retval);
-	return retval;
-}
-
-static void __exit bcd2000_exit(void)
-{
-	usb_deregister(&bcd2000_driver);
-}
-
-module_init(bcd2000_init);
-module_exit(bcd2000_exit);
+module_usb_driver(bcd2000_driver);
 
 MODULE_DEVICE_TABLE(usb, id_table);
 MODULE_AUTHOR("Mario Kicherer, dev@kicherer.org");
