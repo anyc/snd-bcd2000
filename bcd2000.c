@@ -96,7 +96,7 @@ static int bcd2000_midi_input_close(struct snd_rawmidi_substream *substream)
 	return 0;
 }
 
-/* register midi substream */
+/* (de)register midi substream from client */
 static void bcd2000_midi_input_trigger(struct snd_rawmidi_substream *substream,
 						int up)
 {
@@ -197,7 +197,7 @@ static int bcd2000_midi_output_close(struct snd_rawmidi_substream *substream)
 	return 0;
 }
 
-/* register midi substream */
+/* (de)register midi substream from client */
 static void bcd2000_midi_output_trigger(struct snd_rawmidi_substream *substream,
 						int up)
 {
@@ -287,7 +287,7 @@ static void bcd2000_init_device(struct bcd2000 *bcd2k)
 	else
 		bcd2k->midi_out_active = 1;
 
-	/* send empty packet to enable button and controller events */
+	/* pass URB to device to enable button and controller events */
 	ret = usb_submit_urb(bcd2k->midi_in_urb, GFP_KERNEL);
 	if (ret < 0)
 		dev_err(&bcd2k->dev->dev, PREFIX
@@ -454,7 +454,7 @@ static void bcd2000_disconnect(struct usb_interface *interface)
 }
 
 static struct usb_driver bcd2000_driver = {
-	.name =	"snd-bcd2000",
+	.name =		"snd-bcd2000",
 	.probe =	bcd2000_probe,
 	.disconnect =	bcd2000_disconnect,
 	.id_table =	id_table,
