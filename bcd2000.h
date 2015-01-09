@@ -6,8 +6,10 @@
 #include <sound/core.h>
 #include <sound/initval.h>
 
+#define DEVICENAME "BCD2000"
 #define PREFIX "snd-bcd2000: "
 
+#include "audio.h"
 #include "midi.h"
 
 struct bcd2000 {
@@ -17,6 +19,7 @@ struct bcd2000 {
 	int card_index;
 
 	struct bcd2000_midi midi;
+	struct bcd2000_pcm pcm;
 };
 
 void bcd2000_dump_buffer(const char *prefix, const char *buf, int len);

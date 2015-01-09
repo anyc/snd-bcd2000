@@ -25,6 +25,7 @@
 
 #include "bcd2000.h"
 #include "midi.h"
+#include "audio.h"
 
 static struct usb_device_id id_table[] = {
 	{ USB_DEVICE(0x1397, 0x00bd) },
@@ -52,26 +53,28 @@ void bcd2000_dump_buffer(const char *prefix, const char *buf, int len) {}
 static void bcd2000_disconnect(struct usb_interface *interface)
 {
 	struct bcd2000 *bcd2k = usb_get_intfdata(interface);
-	
+
 	if (!bcd2k)
 		return;
-	
+
 	mutex_lock(&devices_mutex);
-	
+
 	/* make sure that userspace cannot create new requests */
 	snd_card_disconnect(bcd2k->card);
-	
+
+	bcd2000_free_audio(bcd2k);
+
 	bcd2000_free_midi(bcd2k);
-	
+
 	if (bcd2k->intf) {
 		usb_set_intfdata(bcd2k->intf, NULL);
 		bcd2k->intf = NULL;
 	}
-	
+
 	clear_bit(bcd2k->card_index, devices_used);
-	
+
 	snd_card_free_when_closed(bcd2k->card);
-	
+
 	mutex_unlock(&devices_mutex);
 }
 
@@ -116,13 +119,17 @@ static int bcd2000_probe(struct usb_interface *interface,
 	snd_card_set_dev(card, &interface->dev);
 
 	strncpy(card->driver, "snd-bcd2000", sizeof(card->driver));
-	strncpy(card->shortname, "BCD2000", sizeof(card->shortname));
+	strncpy(card->shortname, DEVICENAME, sizeof(card->shortname));
 	usb_make_path(bcd2k->dev, usb_path, sizeof(usb_path));
 	snprintf(bcd2k->card->longname, sizeof(bcd2k->card->longname),
-		    "Behringer BCD2000 at %s",
+			"Behringer " DEVICENAME " at %s",
 			usb_path);
 
 	err = bcd2000_init_midi(bcd2k);
+	if (err < 0)
+		goto probe_error;
+
+	err = bcd2000_init_audio(bcd2k);
 	if (err < 0)
 		goto probe_error;
 
