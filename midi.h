@@ -8,6 +8,8 @@
 
 struct bcd2000;
 
+#define MIDI_BUFSIZE 64
+
 struct bcd2000_midi {
 	struct bcd2000 *bcd2k;
 

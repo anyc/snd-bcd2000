@@ -10,6 +10,7 @@
 #define PREFIX "snd-bcd2000: "
 
 #include "audio.h"
+#include "control.h"
 #include "midi.h"
 
 struct bcd2000 {
@@ -20,6 +21,7 @@ struct bcd2000 {
 
 	struct bcd2000_midi midi;
 	struct bcd2000_pcm pcm;
+	struct bcd2000_control control;
 };
 
 void bcd2000_dump_buffer(const char *prefix, const char *buf, int len);

@@ -26,6 +26,7 @@
 #include "bcd2000.h"
 #include "midi.h"
 #include "audio.h"
+#include "control.h"
 
 static struct usb_device_id id_table[] = {
 	{ USB_DEVICE(0x1397, 0x00bd) },
@@ -61,6 +62,8 @@ static void bcd2000_disconnect(struct usb_interface *interface)
 
 	/* make sure that userspace cannot create new requests */
 	snd_card_disconnect(bcd2k->card);
+
+	bcd2000_free_control(bcd2k);
 
 	bcd2000_free_audio(bcd2k);
 
@@ -130,6 +133,10 @@ static int bcd2000_probe(struct usb_interface *interface,
 		goto probe_error;
 
 	err = bcd2000_init_audio(bcd2k);
+	if (err < 0)
+		goto probe_error;
+
+	err = bcd2000_init_control(bcd2k);
 	if (err < 0)
 		goto probe_error;
 
