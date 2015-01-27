@@ -3,8 +3,7 @@ snd-bcd2000
 
 Linux driver for the Behringer BCD2000 DJ controller (1397:00bd) [Official Behringer Website](http://www.behringer.com/EN/Products/BCD2000.aspx)
 
-*Please note*: currently, only the MIDI part of the controller is working.
-Audio support is work-in-progress.
+*Please note*: Audio support is experimental and only available in the audio branch. Please use it with caution.
 
 Dependencies:
 
