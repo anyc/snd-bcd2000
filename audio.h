@@ -26,17 +26,17 @@ struct bcd2000_urb {
 };
 
 struct bcd2000_substream {
-	spinlock_t lock;
 	struct snd_pcm_substream *instance;
 
+	u8 state;
 	bool active;
 	snd_pcm_uframes_t dma_off; /* current position in alsa dma_area */
 	snd_pcm_uframes_t period_off; /* current position in current period */
 
 	struct bcd2000_urb urbs[USB_N_URBS];
 
+	spinlock_t lock;
 	struct mutex mutex;
-	u8 state;
 	wait_queue_head_t wait_queue;
 	bool wait_cond;
 };

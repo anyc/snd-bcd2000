@@ -25,6 +25,12 @@
 
 static const char * const phono_mic_sw_texts[2] = { "Phono A", "Mic" };
 
+/* 
+ * switch between Phono A and Mic input using a MIDI program change command
+ *
+ * The manual specifies "c0 [00|01]" but the windows driver sends
+ * "09 01 [00|01]", we follow the manual here.
+ */
 static void bcd2000_control_phono_mic_sw_update(struct bcd2000_control *ctrl)
 {
 	int actual_length, ret;

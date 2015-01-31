@@ -298,7 +298,7 @@ static int bcd2000_substream_open(struct snd_pcm_substream *substream)
 		stream = &pcm->capture;
 
 	if (!stream) {
-		dev_err(&pcm->bcd2k->dev->dev, "invalid stream type\n");
+		dev_err(&pcm->bcd2k->dev->dev, PREFIX "invalid stream type\n");
 		return -EINVAL;
 	}
 
@@ -372,6 +372,7 @@ static int bcd2000_pcm_stream_start(struct bcd2000_pcm *pcm, struct bcd2000_subs
 				packet->status = 0;
 			}
 
+			/* immediately send data with the first audio out URB */
 			if (stream->instance == SNDRV_PCM_STREAM_PLAYBACK) {
 				bcd2000_pcm_playback(stream, &stream->urbs[i]);
 			}
@@ -387,8 +388,8 @@ static int bcd2000_pcm_stream_start(struct bcd2000_pcm *pcm, struct bcd2000_subs
 		wait_event_timeout(stream->wait_queue,
 						   stream->wait_cond, HZ);
 		if (stream->wait_cond) {
-			dev_dbg(&pcm->bcd2k->dev->dev,
-					"%s: Stream is running wakeup event\n", __func__);
+			dev_dbg(&pcm->bcd2k->dev->dev, PREFIX
+					"%s: stream is running wakeup event\n", __func__);
 			stream->state = STREAM_RUNNING;
 		} else {
 			bcd2000_pcm_stream_stop(pcm, stream);
@@ -423,8 +424,8 @@ static int bcd2000_pcm_prepare(struct snd_pcm_substream *substream)
 		ret = bcd2000_pcm_stream_start(pcm, stream);
 		if (ret) {
 			mutex_unlock(&stream->mutex);
-			dev_err(&pcm->bcd2k->dev->dev,
-					"could not start pcm stream.\n");
+			dev_err(&pcm->bcd2k->dev->dev, PREFIX
+					"could not start pcm stream\n");
 			return ret;
 		}
 	}
