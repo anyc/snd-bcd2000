@@ -505,7 +505,6 @@ static struct snd_pcm_ops bcd2000_ops = {
 	.trigger = bcd2000_pcm_trigger,
 	.pointer = bcd2000_pcm_pointer,
 	.page = snd_pcm_lib_get_vmalloc_page,
-	.mmap = snd_pcm_lib_mmap_vmalloc,
 };
 
 static int bcd2000_pcm_init_urb(struct bcd2000_urb *urb,
