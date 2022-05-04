@@ -383,6 +383,8 @@ static int bcd2000_pcm_stream_start(struct bcd2000_pcm *pcm, struct bcd2000_subs
 
 			ret = usb_submit_urb(&stream->urbs[i].instance, GFP_ATOMIC);
 			if (ret) {
+				dev_err(&pcm->bcd2k->dev->dev, PREFIX
+						"usb_submit_urb failed: %d\n", ret);
 				bcd2000_pcm_stream_stop(pcm, stream);
 				return ret;
 			}
