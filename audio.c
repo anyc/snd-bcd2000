@@ -549,7 +549,9 @@ static void bcd2000_pcm_destroy(struct bcd2000 *bcd2k)
 
 	for (i = 0; i < USB_N_URBS; i++) {
 		kfree(bcd2k->pcm.playback.urbs[i].buffer);
+		#ifdef CONFIG_SND_BCD2000_CAPTURE
 		kfree(bcd2k->pcm.capture.urbs[i].buffer);
+		#endif
 	}
 }
 
@@ -596,9 +598,15 @@ int bcd2000_init_audio(struct bcd2000 *bcd2k)
 	spin_lock_init(&pcm->capture.lock);
 
 	bcd2000_init_stream(bcd2k, &pcm->playback, 0);
+	#ifdef CONFIG_SND_BCD2000_CAPTURE
 	bcd2000_init_stream(bcd2k, &pcm->capture, 1);
-
+	#endif
+	
+	#ifdef CONFIG_SND_BCD2000_CAPTURE
 	ret = snd_pcm_new(bcd2k->card, DEVICENAME, 0, 1, 1, &pcm->instance);
+	#else
+	ret = snd_pcm_new(bcd2k->card, DEVICENAME, 0, 1, 0, &pcm->instance);
+	#endif
 	if (ret < 0) {
 		dev_err(&bcd2k->dev->dev, PREFIX
 			"%s: snd_pcm_new() failed, ret=%d: ",
@@ -614,7 +622,9 @@ int bcd2000_init_audio(struct bcd2000 *bcd2k)
 		sizeof(bcd2000_pcm_hardware));
 
 	snd_pcm_set_ops(pcm->instance, SNDRV_PCM_STREAM_PLAYBACK, &bcd2000_ops);
+	#ifdef CONFIG_SND_BCD2000_CAPTURE
 	snd_pcm_set_ops(pcm->instance, SNDRV_PCM_STREAM_CAPTURE, &bcd2000_ops);
+	#endif
 
 	#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,6,0)
 	snd_pcm_set_managed_buffer_all(pcm, SNDRV_DMA_TYPE_VMALLOC, NULL, 0, 0);
