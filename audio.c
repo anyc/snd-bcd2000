@@ -336,13 +336,22 @@ static int bcd2000_substream_close(struct snd_pcm_substream *substream)
 static int bcd2000_pcm_hw_params(struct snd_pcm_substream *substream,
 				struct snd_pcm_hw_params *hw_params)
 {
+	#if LINUX_VERSION_CODE < KERNEL_VERSION(5,5,0)
 	return snd_pcm_lib_alloc_vmalloc_buffer(substream,
 					params_buffer_bytes(hw_params));
+	#else
+	return snd_pcm_lib_malloc_pages(substream,
+					params_buffer_bytes(hw_params));
+	#endif
 }
 
 static int bcd2000_pcm_hw_free(struct snd_pcm_substream *substream)
 {
+	#if LINUX_VERSION_CODE < KERNEL_VERSION(5,5,0)
 	return snd_pcm_lib_free_vmalloc_buffer(substream);
+	#else
+	return snd_pcm_lib_free_pages(substream);
+	#endif
 }
 #endif
 
@@ -504,7 +513,9 @@ static const struct snd_pcm_ops bcd2000_ops = {
 	.prepare = bcd2000_pcm_prepare,
 	.trigger = bcd2000_pcm_trigger,
 	.pointer = bcd2000_pcm_pointer,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,5,0)
 	.page = snd_pcm_lib_get_vmalloc_page,
+#endif
 };
 
 static int bcd2000_pcm_init_urb(struct bcd2000_urb *urb,
@@ -607,6 +618,9 @@ int bcd2000_init_audio(struct bcd2000 *bcd2k)
 
 	#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,6,0)
 	snd_pcm_set_managed_buffer_all(pcm, SNDRV_DMA_TYPE_VMALLOC, NULL, 0, 0);
+	#elif LINUX_VERSION_CODE > KERNEL_VERSION(5,5,0)
+	snd_pcm_lib_preallocate_pages_for_all(pcm, SNDRV_DMA_TYPE_VMALLOC,
+					      NULL, 0, 0);
 	#endif
 
 	return 0;
