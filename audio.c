@@ -19,6 +19,8 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 
+#include <linux/version.h>
+
 #include "audio.h"
 #include "bcd2000.h"
 
@@ -338,6 +340,7 @@ static int bcd2000_substream_close(struct snd_pcm_substream *substream)
 	return 0;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,6,0)
 static int bcd2000_pcm_hw_params(struct snd_pcm_substream *substream,
 				struct snd_pcm_hw_params *hw_params)
 {
@@ -349,6 +352,7 @@ static int bcd2000_pcm_hw_free(struct snd_pcm_substream *substream)
 {
 	return snd_pcm_lib_free_vmalloc_buffer(substream);
 }
+#endif
 
 static int bcd2000_pcm_stream_start(struct bcd2000_pcm *pcm, struct bcd2000_substream *stream)
 {
@@ -499,8 +503,10 @@ static struct snd_pcm_ops bcd2000_ops = {
 	.open = bcd2000_substream_open,
 	.close = bcd2000_substream_close,
 	.ioctl = snd_pcm_lib_ioctl,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,6,0)
 	.hw_params = bcd2000_pcm_hw_params,
 	.hw_free = bcd2000_pcm_hw_free,
+#endif
 	.prepare = bcd2000_pcm_prepare,
 	.trigger = bcd2000_pcm_trigger,
 	.pointer = bcd2000_pcm_pointer,
@@ -604,6 +610,10 @@ int bcd2000_init_audio(struct bcd2000 *bcd2k)
 
 	snd_pcm_set_ops(pcm->instance, SNDRV_PCM_STREAM_PLAYBACK, &bcd2000_ops);
 	snd_pcm_set_ops(pcm->instance, SNDRV_PCM_STREAM_CAPTURE, &bcd2000_ops);
+
+	#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,6,0)
+	snd_pcm_set_managed_buffer_all(pcm, SNDRV_DMA_TYPE_VMALLOC, NULL, 0, 0);
+	#endif
 
 	return 0;
 }
