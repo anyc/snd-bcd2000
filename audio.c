@@ -521,7 +521,7 @@ static int bcd2000_pcm_init_urb(struct bcd2000_urb *urb,
 	urb->bcd2k = bcd2k;
 	usb_init_urb(&urb->instance);
 
-	urb->buffer = kzalloc(USB_BUFFER_SIZE, GFP_KERNEL);
+	urb->buffer = kcalloc(USB_PACKET_SIZE, USB_N_PACKETS_PER_URB, GFP_KERNEL);
 	if (!urb->buffer)
 		return -ENOMEM;
 
