@@ -499,7 +499,7 @@ bcd2000_pcm_pointer(struct snd_pcm_substream *substream)
 	return ret;
 }
 
-static struct snd_pcm_ops bcd2000_ops = {
+static const struct snd_pcm_ops bcd2000_ops = {
 	.open = bcd2000_substream_open,
 	.close = bcd2000_substream_close,
 	.ioctl = snd_pcm_lib_ioctl,
