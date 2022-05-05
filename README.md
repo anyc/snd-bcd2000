@@ -31,8 +31,10 @@ Troubleshooting
 
 If audio is enabled, device initialization sometimes fails with the following error in the kernel log:
 
+```
 snd-bcd2000: usb_submit_urb failed: -28
 snd-bcd2000: could not start pcm stream
+```
 
 This is likely an issue with bandwidth reservation on the USB bus. As a workaroud, the driver now disables
 the capturing from the device by default as most people just use it for playback. If you see this error or
