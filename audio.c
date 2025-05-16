@@ -562,7 +562,7 @@ static void bcd2000_pcm_free(struct snd_pcm *pcm)
 		bcd2000_pcm_destroy(bcd2k_pcm->bcd2k);
 }
 
-int bcd2000_init_stream(struct bcd2000 *bcd2k,struct bcd2000_substream *stream, bool in)
+static int bcd2000_init_stream(struct bcd2000 *bcd2k,struct bcd2000_substream *stream, bool in)
 {
 	int i, ret;
 
