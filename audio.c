@@ -630,9 +630,9 @@ int bcd2000_init_audio(struct bcd2000 *bcd2k)
 	#endif
 
 	#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,6,0)
-	snd_pcm_set_managed_buffer_all(pcm, SNDRV_DMA_TYPE_VMALLOC, NULL, 0, 0);
+	snd_pcm_set_managed_buffer_all(pcm->instance, SNDRV_DMA_TYPE_VMALLOC, NULL, 0, 0);
 	#elif LINUX_VERSION_CODE > KERNEL_VERSION(5,5,0)
-	snd_pcm_lib_preallocate_pages_for_all(pcm, SNDRV_DMA_TYPE_VMALLOC,
+	snd_pcm_lib_preallocate_pages_for_all(pcm->instance, SNDRV_DMA_TYPE_VMALLOC,
 					      NULL, 0, 0);
 	#endif
 
