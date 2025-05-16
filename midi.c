@@ -14,6 +14,8 @@
  *   GNU General Public License for more details.
  */
 
+#include <linux/version.h>
+
 #include "bcd2000.h"
 #include "midi.h"
 
@@ -249,7 +251,11 @@ int bcd2000_init_midi(struct bcd2000 *bcd2k)
 	if (ret < 0)
 		return ret;
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6,8,0))
+	strscpy(rmidi->name, bcd2k->card->shortname, sizeof(rmidi->name));
+#else
 	strlcpy(rmidi->name, bcd2k->card->shortname, sizeof(rmidi->name));
+#endif
 
 	rmidi->info_flags = SNDRV_RAWMIDI_INFO_DUPLEX;
 	rmidi->private_data = bcd2k;

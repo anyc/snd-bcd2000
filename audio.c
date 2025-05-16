@@ -615,8 +615,11 @@ int bcd2000_init_audio(struct bcd2000 *bcd2k)
 	}
 	pcm->instance->private_data = pcm;
 	pcm->instance->private_free = bcd2000_pcm_free;
-
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6,8,0))
+	strscpy(pcm->instance->name, DEVICENAME, sizeof(pcm->instance->name));
+#else
 	strlcpy(pcm->instance->name, DEVICENAME, sizeof(pcm->instance->name));
+#endif
 
 	memcpy(&pcm->pcm_info, &bcd2000_pcm_hardware,
 		sizeof(bcd2000_pcm_hardware));
